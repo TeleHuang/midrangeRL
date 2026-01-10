@@ -9,6 +9,7 @@
     
     通过时空图，飞行员可以直观地看到：
     - 自身轨迹预测（当前舵量预测 + 全力回转逃脱曲线）
+    - 全力回转逃脱线是指旋转至逃脱方向即停止旋转进入直线加速的预测线
     - 敌方威胁锥（导弹可达范围）
     - 来袭导弹的预测轨迹
 
@@ -20,7 +21,7 @@
 
 模块组成:
     - SpacetimePoint: 时空点数据结构 (x, y, t, speed, angle)
-    - SpacetimeTrail: 时空轨迹管理（历史+预测）
+    - SpacetimeTrail: 时空轨迹管理（预测）
     - MissileTables: 导弹飞行轨迹查找表（预计算）
     - ThreatConeGenerator: 威胁锥几何生成器
     - TrajectoryPredictor: 飞机/导弹轨迹预测器
@@ -77,7 +78,6 @@ class SpacetimeTrail:
     时空轨迹管理器
     
     包含一个实体（飞机/导弹）的：
-    - 历史轨迹: 过去几秒的实际位置记录
     - 预测轨迹: 未来的多条预测线（如current/left_turn/right_turn）
     - 预测时间戳: 用于时间同步（预测线随时间流逝上升）
     """

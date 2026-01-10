@@ -1,0 +1,2118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MidrangeRL Mobile</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; touch-action: none; font-family: Arial, sans-serif; }
+        canvas { display: block; width: 100%; height: 100%; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        
+        .control-area { position: absolute; pointer-events: auto; }
+        
+        /* Joystick Styles */
+        .joystick-zone { position: absolute; bottom: 40px; width: 120px; height: 120px; pointer-events: auto; }
+        .joystick-base { width: 100%; height: 100%; border: 2px solid rgba(255, 255, 255, 0.3); border-radius: 50%; position: relative; background: rgba(255, 255, 255, 0.05); }
+        .joystick-stick { position: absolute; top: 50%; left: 50%; width: 50px; height: 50px; margin-left: -25px; margin-top: -25px; background: rgba(255, 255, 255, 0.5); border-radius: 50%; transform: translate(0, 0); transition: transform 0.1s; }
+        
+        /* P1 Controls (Left Screen) */
+        #p1-controls { position: absolute; left: 0; bottom: 0; width: 50%; height: 100%; pointer-events: none; border-right: 1px solid rgba(255,255,255,0.2); }
+        #p1-joystick-zone { left: 30px; }
+        #p1-fire-btn { bottom: 50px; right: 30px; width: 80px; height: 80px; background: rgba(255, 50, 50, 0.5); border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.3); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; pointer-events: auto; position: absolute; }
+        #p1-fire-btn:active { background: rgba(255, 50, 50, 0.8); transform: scale(0.95); }
+
+        /* P2 Controls (Right Screen) */
+        #p2-controls { position: absolute; right: 0; bottom: 0; width: 50%; height: 100%; pointer-events: none; }
+        #p2-joystick-zone { left: 30px; }
+        #p2-fire-btn { bottom: 50px; right: 30px; width: 80px; height: 80px; background: rgba(50, 50, 255, 0.5); border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.3); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; pointer-events: auto; position: absolute; }
+        #p2-fire-btn:active { background: rgba(50, 50, 255, 0.8); transform: scale(0.95); }
+        
+        /* Info Panels */
+        .info-panel { position: absolute; top: 10px; color: #0f0; font-family: monospace; font-size: 24px; text-shadow: 1px 1px 0 #000; pointer-events: none; width: 45%; }
+        #p1-info { left: 10px; text-align: left; }
+        #p2-info { right: 10px; text-align: right; color: #aaf; }
+        
+        /* Game Over */
+        #game-over { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; color: white; pointer-events: auto; z-index: 100; }
+        #game-over h1 { font-size: 40px; margin-bottom: 20px; color: #ff3333; }
+        #game-over button { padding: 15px 40px; font-size: 24px; background: #333; color: white; border: 2px solid #fff; border-radius: 10px; cursor: pointer; }
+        #game-over button:hover { background: #555; }
+
+        /* Start Screen */
+        #start-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; pointer-events: auto; z-index: 100; }
+        #start-screen h1 { font-size: 32px; margin-bottom: 40px; text-align: center; }
+        #start-screen button { padding: 15px 40px; font-size: 24px; background: #0066cc; color: white; border: none; border-radius: 10px; cursor: pointer; }
+        
+        /* Split Line */
+        #split-line { position: absolute; left: 50%; top: 0; width: 2px; height: 100%; background: rgba(255,255,255,0.3); transform: translateX(-50%); }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="ui-layer">
+        <button id="in-game-menu-btn" style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); pointer-events: auto; background: rgba(50,50,50,0.8); color: white; border: 1px solid #999; padding: 5px 10px; border-radius: 5px; z-index: 50;">MENU</button>
+        <button id="toggle-view-btn" style="position: absolute; top: 50px; left: 50%; transform: translateX(-50%); pointer-events: auto; background: rgba(0,100,200,0.8); color: white; border: 1px solid #999; padding: 5px 10px; border-radius: 5px; z-index: 50;">VIEW (V)</button>
+        <div id="split-line"></div>
+        
+        <!-- P1 UI -->
+        <div id="p1-info" class="info-panel">
+            P1 (RED)<br>
+            SPD: <span id="p1-speed">0</span><br>
+            HDG: <span id="p1-hdg">0</span>°<br>
+            OMG: <span id="p1-omega">0</span>°/s<br>
+            G: <span id="p1-g">0.0</span><br>
+            MSL: <span id="p1-msl">6</span>
+        </div>
+        <div id="p1-controls">
+            <div id="p1-joystick-zone" class="joystick-zone">
+                <div class="joystick-base">
+                    <div id="p1-joystick-stick" class="joystick-stick"></div>
+                </div>
+            </div>
+            <div id="p1-fire-btn">FIRE</div>
+        </div>
+
+        <!-- P2 UI -->
+        <div id="p2-info" class="info-panel">
+            P2 (BLUE)<br>
+            SPD: <span id="p2-speed">0</span><br>
+            HDG: <span id="p2-hdg">0</span>°<br>
+            OMG: <span id="p2-omega">0</span>°/s<br>
+            G: <span id="p2-g">0.0</span><br>
+            MSL: <span id="p2-msl">6</span>
+        </div>
+        <div id="p2-controls">
+            <div id="p2-joystick-zone" class="joystick-zone">
+                <div class="joystick-base">
+                    <div id="p2-joystick-stick" class="joystick-stick"></div>
+                </div>
+            </div>
+            <div id="p2-fire-btn">FIRE</div>
+        </div>
+    </div>
+
+    <div id="start-screen">
+        <h1>MidrangeRL<br>Split Screen</h1>
+        <button id="start-btn">START MATCH</button>
+        <button id="settings-btn" style="margin-top: 20px; background: #666;">SETTINGS</button>
+        <button id="missile-envelope-btn" style="margin-top: 20px; background: #8844aa;">MISSILE ENVELOPE</button>
+        <button id="aero-curves-btn" style="margin-top: 20px; background: #aa8844;">AERODYNAMICS</button>
+        <p style="margin-top: 20px; color: #aaa; font-size: 14px;">Full Throttle Enabled</p>
+    </div>
+
+    <div id="envelope-screen" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); flex-direction: column; align-items: center; justify-content: flex-start; overflow-y: auto; padding-top: 20px; z-index: 200;">
+        <h2 style="color: white;">Missile Flight Envelope</h2>
+        <div style="width: 90%; max-width: 800px; margin-bottom: 20px;">
+            <label style="color: white; margin-right: 10px;">Initial Speed (m/s): <span id="env-speed-val">300</span></label>
+            <input type="range" id="env-speed-slider" min="0" max="600" value="300" step="10" style="width: 200px;">
+        </div>
+        <canvas id="envelope-canvas" width="800" height="500" style="background: #222; border: 1px solid #555;"></canvas>
+        <button id="close-envelope-btn" style="margin-top: 20px; padding: 10px 30px; font-size: 18px; background: #555; color: white; border: none; border-radius: 5px; cursor: pointer;">CLOSE</button>
+    </div>
+
+    <div id="aero-screen" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); flex-direction: column; align-items: center; justify-content: flex-start; overflow-y: auto; padding-top: 20px; z-index: 200;">
+        <h2 style="color: white;">Aerodynamic Characteristics</h2>
+        <canvas id="aero-canvas" width="800" height="600" style="background: #222; border: 1px solid #555;"></canvas>
+        <button id="close-aero-btn" style="margin-top: 20px; padding: 10px 30px; font-size: 18px; background: #555; color: white; border: none; border-radius: 5px; cursor: pointer;">CLOSE</button>
+    </div>
+
+    <div id="settings-screen" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); flex-direction: column; align-items: center; justify-content: flex-start; overflow-y: auto; padding-top: 50px; z-index: 200;">
+        <h2 style="color: white;">GAME CONFIG</h2>
+        <div id="settings-content" style="color: white; width: 80%; max-width: 600px;">
+            <!-- Settings will be injected here -->
+        </div>
+        <button id="save-settings-btn" style="margin: 20px; padding: 15px 40px; font-size: 24px; background: #00cc66; color: white; border: none; border-radius: 10px; cursor: pointer;">SAVE & BACK</button>
+    </div>
+
+    <div id="game-over">
+        <h1 id="winner-text">GAME OVER</h1>
+        <button id="restart-btn">RESTART</button>
+    </div>
+
+
+    <script>
+    // --- CONFIGURATION ---
+    let CONFIG = {
+        BATTLEFIELD_SIZE: 50000,
+        INITIAL_DISTANCE_RATIO: 0.3,
+        
+        // Fighter
+        FIGHTER_TERMINAL_VELOCITY: 400,
+        FIGHTER_MIN_TURN_RADIUS: 1000,
+        FIGHTER_MAX_THRUST: 1.5 * 9.8,
+        FIGHTER_LIFT_DRAG_RATIO: 5,
+        FIGHTER_MISSILES: 6,
+        
+        // Missile
+        MISSILE_TERMINAL_VELOCITY: 400,
+        MISSILE_MIN_TURN_RADIUS: 1000,
+        MISSILE_THRUST: 15 * 9.8,
+        MISSILE_ENGINE_DURATION: 10.0,
+        MISSILE_LIFT_DRAG_RATIO: 2,
+        MISSILE_GUIDANCE_GAIN: 200,
+        
+        // Physics
+        G: 9.8,
+        
+        // Game
+        HIT_RADIUS: 100,
+        SELF_DESTRUCT_SPEED: 200,
+        FIRE_COOLDOWN: 0.5
+    };
+
+    // Derived Constants Helper
+    function updateDerivedConstants() {
+        window.FIGHTER_CL_MAX = 1 / CONFIG.FIGHTER_MIN_TURN_RADIUS;
+        window.MISSILE_CL_MAX = 1 / CONFIG.MISSILE_MIN_TURN_RADIUS;
+    }
+
+    // Initial calculation
+    let FIGHTER_CL_MAX = 1 / CONFIG.FIGHTER_MIN_TURN_RADIUS;
+    let MISSILE_CL_MAX = 1 / CONFIG.MISSILE_MIN_TURN_RADIUS;
+
+    // --- ANALYSIS TOOLS ---
+    class MissileAnalyzer {
+        static simulateStraightFlight(initialSpeed) {
+            const dt = 0.1;
+            const maxTime = 60.0;
+            const trajectory = [];
+            
+            let distance = 0.0;
+            let speed = initialSpeed;
+            let engineTime = CONFIG.MISSILE_ENGINE_DURATION;
+            let time = 0.0;
+            
+            const terminalVelocity = CONFIG.MISSILE_TERMINAL_VELOCITY;
+            const Cd0 = CONFIG.G / (terminalVelocity * terminalVelocity);
+            const thrust = CONFIG.MISSILE_THRUST;
+            const minSpeed = 50.0;
+
+            while (time <= maxTime && speed > minSpeed) {
+                trajectory.push({
+                    time: time,
+                    distance: distance,
+                    speed: speed,
+                    mach: speed / 340.0
+                });
+                
+                let thrustAccel = 0;
+                if (engineTime > 0) {
+                    thrustAccel = thrust;
+                    engineTime -= dt;
+                }
+                
+                const dragAccel = Cd0 * speed * speed;
+                const accel = thrustAccel - dragAccel;
+                
+                speed += accel * dt;
+                distance += speed * dt;
+                time += dt;
+            }
+            return trajectory;
+        }
+
+        static drawEnvelope(canvasId, initialSpeed) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+            
+            // Background
+            ctx.fillStyle = '#222';
+            ctx.fillRect(0, 0, w, h);
+            
+            const data = this.simulateStraightFlight(initialSpeed);
+            if (data.length === 0) return;
+
+            // Margins
+            const margin = { top: 40, right: 60, bottom: 40, left: 60 };
+            const graphW = w - margin.left - margin.right;
+            const graphH = h - margin.top - margin.bottom;
+
+            // Ranges
+            const maxTime = 60;
+            const maxMach = 5;
+            const maxDist = 50000; // 50km
+
+            // Scales
+            const scaleX = (t) => margin.left + (t / maxTime) * graphW;
+            const scaleY_Mach = (m) => margin.top + graphH - (m / maxMach) * graphH;
+            const scaleY_Dist = (d) => margin.top + graphH - (d / maxDist) * graphH;
+
+            // Draw Axes
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#888';
+            ctx.beginPath();
+            // X Axis
+            ctx.moveTo(margin.left, margin.top + graphH);
+            ctx.lineTo(margin.left + graphW, margin.top + graphH);
+            // Y Axis Left (Mach)
+            ctx.moveTo(margin.left, margin.top);
+            ctx.lineTo(margin.left, margin.top + graphH);
+            // Y Axis Right (Dist)
+            ctx.moveTo(margin.left + graphW, margin.top);
+            ctx.lineTo(margin.left + graphW, margin.top + graphH);
+            ctx.stroke();
+
+            // Grid & Labels
+            ctx.fillStyle = '#aaa';
+            ctx.font = '12px monospace';
+            ctx.textAlign = 'center';
+            
+            // Time Labels
+            for (let t = 0; t <= maxTime; t += 10) {
+                const x = scaleX(t);
+                ctx.fillText(t + 's', x, margin.top + graphH + 20);
+                ctx.beginPath();
+                ctx.strokeStyle = '#444';
+                ctx.moveTo(x, margin.top);
+                ctx.lineTo(x, margin.top + graphH);
+                ctx.stroke();
+            }
+
+            // Mach Labels (Left)
+            ctx.textAlign = 'right';
+            for (let m = 0; m <= maxMach; m += 1) {
+                const y = scaleY_Mach(m);
+                ctx.fillText(m + ' M', margin.left - 10, y + 5);
+                ctx.beginPath();
+                ctx.strokeStyle = '#444';
+                ctx.moveTo(margin.left, y);
+                ctx.lineTo(margin.left + graphW, y);
+                ctx.stroke();
+            }
+
+            // Dist Labels (Right)
+            ctx.textAlign = 'left';
+            for (let d = 0; d <= maxDist; d += 10000) {
+                const y = scaleY_Dist(d);
+                ctx.fillText((d/1000) + ' km', margin.left + graphW + 10, y + 5);
+            }
+
+            // Plot Mach (Red)
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#ff5555';
+            ctx.beginPath();
+            ctx.moveTo(scaleX(data[0].time), scaleY_Mach(data[0].mach));
+            for (let i = 1; i < data.length; i++) {
+                ctx.lineTo(scaleX(data[i].time), scaleY_Mach(data[i].mach));
+            }
+            ctx.stroke();
+
+            // Plot Distance (Blue)
+            ctx.strokeStyle = '#5555ff';
+            ctx.beginPath();
+            ctx.moveTo(scaleX(data[0].time), scaleY_Dist(data[0].distance));
+            for (let i = 1; i < data.length; i++) {
+                ctx.lineTo(scaleX(data[i].time), scaleY_Dist(data[i].distance));
+            }
+            ctx.stroke();
+
+            // Legend
+            ctx.fillStyle = '#ff5555';
+            ctx.fillText('Speed (Mach)', margin.left + 100, margin.top - 10);
+            ctx.fillStyle = '#5555ff';
+            ctx.fillText('Distance (km)', margin.left + graphW - 50, margin.top - 10);
+        }
+    }
+
+    class AeroAnalyzer {
+        static computeCurves(terminalVelocity, minTurnRadius, liftDragRatio, g = 9.8, machSpeed = 340.0) {
+            const epsilon = 1e-7;
+            const clMax = 1.0 / minTurnRadius;
+            const cd0 = g / (terminalVelocity * terminalVelocity);
+            const k = 1.0 / (4.0 * cd0 * (liftDragRatio * liftDragRatio) + epsilon);
+            
+            const data = [];
+            const steps = 801;
+            
+            for (let i = 0; i < steps; i++) {
+                const rudder = -1.0 + (i / (steps - 1)) * 2.0;
+                const cl = Math.abs(rudder) * clMax;
+                const cd = cd0 + k * (cl * cl);
+                const dragAccel = cd * (machSpeed * machSpeed);
+                const ld = cl / cd;
+                
+                data.push({
+                    rudder: rudder,
+                    dragAccel: dragAccel,
+                    ld: ld
+                });
+            }
+            
+            return data;
+        }
+
+        static drawCurves(canvasId) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+            
+            // Compute Data
+            const missileData = this.computeCurves(
+                CONFIG.MISSILE_TERMINAL_VELOCITY,
+                CONFIG.MISSILE_MIN_TURN_RADIUS,
+                CONFIG.MISSILE_LIFT_DRAG_RATIO,
+                CONFIG.G
+            );
+            
+            const fighterData = this.computeCurves(
+                CONFIG.FIGHTER_TERMINAL_VELOCITY,
+                CONFIG.FIGHTER_MIN_TURN_RADIUS,
+                CONFIG.FIGHTER_LIFT_DRAG_RATIO,
+                CONFIG.G
+            );
+
+            // Clear
+            ctx.fillStyle = '#222';
+            ctx.fillRect(0, 0, w, h);
+            
+            // Layout: 2x2 Grid
+            const pad = 40;
+            const cellW = (w - pad * 3) / 2;
+            const cellH = (h - pad * 3) / 2;
+            
+            // Helper to draw plot
+            const drawPlot = (x, y, data, key, title, color) => {
+                // Background
+                ctx.fillStyle = '#111';
+                ctx.fillRect(x, y, cellW, cellH);
+                
+                // Title
+                ctx.fillStyle = '#ddd';
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(title, x + cellW/2, y - 5);
+                
+                // Scales
+                let minVal = Infinity, maxVal = -Infinity;
+                data.forEach(d => {
+                    if(d[key] < minVal) minVal = d[key];
+                    if(d[key] > maxVal) maxVal = d[key];
+                });
+                
+                // Adjust scale
+                if (minVal > 0) minVal = 0;
+                maxVal *= 1.1;
+                
+                const mapX = (r) => x + ((r - (-1.0)) / 2.0) * cellW;
+                const mapY = (v) => y + cellH - ((v - minVal) / (maxVal - minVal)) * cellH;
+                
+                // Grid & Axes
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                // X Axis (Rudder 0)
+                const x0 = mapX(0);
+                if (x0 >= x && x0 <= x + cellW) {
+                    ctx.moveTo(x0, y); ctx.lineTo(x0, y + cellH);
+                }
+                // Y Axis (Val 0)
+                const y0 = mapY(0);
+                if (y0 >= y && y0 <= y+cellH) {
+                    ctx.moveTo(x, y0); ctx.lineTo(x + cellW, y0);
+                }
+                ctx.stroke();
+                
+                // Plot
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                let first = true;
+                data.forEach(d => {
+                    const px = mapX(d.rudder);
+                    const py = mapY(d[key]);
+                    if (first) { ctx.moveTo(px, py); first = false; }
+                    else ctx.lineTo(px, py);
+                });
+                ctx.stroke();
+                
+                // Labels
+                ctx.fillStyle = '#888';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText(maxVal.toFixed(1), x - 5, y + 10);
+                ctx.fillText(minVal.toFixed(1), x - 5, y + cellH);
+                
+                ctx.textAlign = 'center';
+                ctx.fillText('Rudder', x + cellW/2, y + cellH + 12);
+            };
+            
+            // 1. Missile Drag (Top Left)
+            drawPlot(pad, pad + 15, missileData, 'dragAccel', 'Missile Drag Accel (Mach 1)', '#44aaff');
+            
+            // 2. Missile L/D (Top Right)
+            drawPlot(pad * 2 + cellW, pad + 15, missileData, 'ld', 'Missile L/D', '#ffaa44');
+            
+            // 3. Fighter Drag (Bottom Left)
+            drawPlot(pad, pad * 2 + cellH + 15, fighterData, 'dragAccel', 'Fighter Drag Accel (Mach 1)', '#44aaff');
+            
+            // 4. Fighter L/D (Bottom Right)
+            drawPlot(pad * 2 + cellW, pad * 2 + cellH + 15, fighterData, 'ld', 'Fighter L/D', '#ffaa44');
+        }
+    }
+    const DEG2RAD = Math.PI / 180;
+    const RAD2DEG = 180 / Math.PI;
+
+    function clamp(val, min, max) {
+        return Math.max(min, Math.min(max, val));
+    }
+
+    // --- PHYSICS ENGINE ---
+    class Aerodynamic {
+        static calculatePhysics(entity, dt) {
+            const isMissile = entity.isMissile;
+            
+            let terminalVelocity, clMax, maxThrust, liftDragRatio, thrustAccel;
+            
+            if (isMissile) {
+                terminalVelocity = CONFIG.MISSILE_TERMINAL_VELOCITY;
+                clMax = MISSILE_CL_MAX;
+                maxThrust = CONFIG.MISSILE_THRUST;
+                liftDragRatio = CONFIG.MISSILE_LIFT_DRAG_RATIO;
+                
+                entity.engineTime = Math.max(0, entity.engineTime - dt);
+                thrustAccel = entity.engineTime > 0 ? maxThrust : 0;
+            } else {
+                terminalVelocity = CONFIG.FIGHTER_TERMINAL_VELOCITY;
+                clMax = FIGHTER_CL_MAX;
+                maxThrust = CONFIG.FIGHTER_MAX_THRUST;
+                liftDragRatio = CONFIG.FIGHTER_LIFT_DRAG_RATIO;
+                thrustAccel = entity.throttle * maxThrust;
+            }
+
+            const epsilon = 1e-7;
+            const vx = entity.vx;
+            const vy = entity.vy;
+            const rudder = entity.rudder; // [-1, 1]
+
+            // 1. Velocity Squared & Inverse
+            const vSquare = vx*vx + vy*vy;
+            const speed = Math.sqrt(vSquare);
+            const invV = 1.0 / (speed + epsilon);
+
+            // 2. Normalized Velocity Vector (nx, ny)
+            const nx = vx * invV;
+            const ny = vy * invV;
+
+            // 3. Normalized Perpendicular Vector (pnx, pny) - Left turn is positive rudder
+            const pnx = -ny;
+            const pny = nx;
+
+            // 4. Aerodynamic Coefficients
+            const Cd0 = CONFIG.G / (terminalVelocity * terminalVelocity);
+            const Cl_intermediate = Math.abs(rudder) * clMax;
+            
+            // Induced drag factor k
+            const k = 1.0 / (4.0 * Cd0 * (liftDragRatio * liftDragRatio) + epsilon);
+            
+            // Total Drag Coefficient
+            const Cd = Cd0 + k * (Cl_intermediate * Cl_intermediate);
+
+            // 5. Drag Acceleration
+            const dragAccel = Cd * vSquare;
+
+            // 6. Parallel Acceleration (Thrust - Drag)
+            const parallelAccelMag = thrustAccel - dragAccel;
+
+            // 7. Centripetal Acceleration
+            // a_c = v^2 * cl_max * rudder
+            const centripetalAccelMag = vSquare * clMax * rudder;
+
+            // 8. Total Acceleration Vector
+            const ax = nx * parallelAccelMag + pnx * centripetalAccelMag;
+            const ay = ny * parallelAccelMag + pny * centripetalAccelMag;
+
+            // --- Update State ---
+            const vxNew = vx + ax * dt;
+            const vyNew = vy + ay * dt;
+            
+            entity.x += vxNew * dt;
+            entity.y += vyNew * dt;
+            entity.vx = vxNew;
+            entity.vy = vyNew;
+            
+            // Update scalar values
+            entity.speed = Math.sqrt(vxNew*vxNew + vyNew*vyNew);
+            entity.angle = (Math.atan2(vyNew, vxNew) * RAD2DEG + 360) % 360;
+            
+            // G-Load
+            const nLoadMag = vSquare * clMax;
+            entity.gLoad = (nLoadMag * Math.abs(rudder)) / CONFIG.G;
+            
+            // Angular Velocity (deg/s)
+            if (speed > 10) {
+                entity.omega = (centripetalAccelMag / speed) * RAD2DEG;
+            } else {
+                entity.omega = 0;
+            }
+        }
+    }
+
+    class MissileGuidance {
+        constructor() {
+            this.history = new Map(); // Map<Missile, {lastLosAngle, lastTime}>
+        }
+
+        calculateGuidance(missile, target, time) {
+            if (!target || !target.alive) return 0.0;
+
+            let hist = this.history.get(missile);
+            if (!hist) {
+                hist = { lastLosAngle: null, lastTime: null };
+                this.history.set(missile, hist);
+            }
+
+            const dx = target.x - missile.x;
+            const dy = target.y - missile.y;
+            const currentLosAngle = Math.atan2(dy, dx) * RAD2DEG;
+
+            let losRate = 0;
+            if (hist.lastLosAngle !== null && hist.lastTime !== null) {
+                const dt = time - hist.lastTime;
+                if (dt > 0) {
+                    let angleDiff = (currentLosAngle - hist.lastLosAngle + 180) % 360 - 180;
+                    losRate = angleDiff / dt;
+                }
+            }
+
+            hist.lastLosAngle = currentLosAngle;
+            hist.lastTime = time;
+
+            let rudder = CONFIG.MISSILE_GUIDANCE_GAIN * losRate / 180.0;
+            return clamp(rudder, -1.0, 1.0);
+        }
+    }
+
+    // --- AI CONTROLLER ---
+    class SimpleAI {
+        constructor() {
+            this.lastActionTime = 0;
+        }
+
+        update(aiEntity, targetEntity, incomingMissiles, inputState, dt, gameTime) {
+            if (!aiEntity.alive) {
+                inputState.rudder = 0;
+                inputState.fire = false;
+                return;
+            }
+
+            // 1. Detect threats (Missiles targeting me)
+            let threat = null;
+            let minTime = Infinity;
+
+            for (const m of incomingMissiles) {
+                if (m.target === aiEntity && m.alive) {
+                    const dx = m.x - aiEntity.x;
+                    const dy = m.y - aiEntity.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    // Simple Time-To-Go estimation
+                    const closingSpeed = m.speed + aiEntity.speed * 0.5; 
+                    const timeToImpact = dist / closingSpeed;
+                    
+                    if (timeToImpact < minTime) {
+                        minTime = timeToImpact;
+                        threat = m;
+                    }
+                }
+            }
+
+            // 2. Decide Action
+            // Priority: Evade > Attack
+            if (threat && minTime < 8.0) {
+                // --- EVASION ---
+                // Beam Maneuver: Fly perpendicular to missile bearing
+                const dx = threat.x - aiEntity.x;
+                const dy = threat.y - aiEntity.y;
+                const angleToMissile = Math.atan2(dy, dx) * RAD2DEG;
+                
+                let angleDiff = (angleToMissile - aiEntity.angle + 180) % 360 - 180;
+                
+                // If missile is roughly in front (within +/- 90 degrees), turn hard away
+                if (Math.abs(angleDiff) < 120) {
+                    // If missile is to my Left (angleDiff > 0), turn Right (rudder -1)
+                    inputState.rudder = angleDiff > 0 ? -1.0 : 1.0;
+                } else {
+                    // Missile is behind. Jink?
+                    // Just oscillate to bleed its energy
+                    inputState.rudder = Math.sin(gameTime * 3); 
+                }
+                
+                inputState.fire = false; // Don't focus on firing while evading
+            } else {
+                // --- PURSUIT ---
+                if (!targetEntity.alive) {
+                    inputState.rudder = 0.5; // Victory roll
+                    return;
+                }
+
+                const dx = targetEntity.x - aiEntity.x;
+                const dy = targetEntity.y - aiEntity.y;
+                const targetAngle = Math.atan2(dy, dx) * RAD2DEG;
+                
+                let angleDiff = (targetAngle - aiEntity.angle + 180) % 360 - 180;
+                
+                // Proportional control for smooth pursuit
+                inputState.rudder = clamp(angleDiff / 30.0, -1.0, 1.0);
+                
+                // Fire Logic
+                // Conditions: Target alive, Angle small, Distance appropriate
+                if (Math.abs(angleDiff) < 10) {
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist < 15000 && dist > 2000) {
+                         // Rate limiting fire is handled by game cooldown, 
+                         // but let's add some AI reaction delay/randomness
+                         if (Math.random() < 0.02) {
+                             inputState.fire = true;
+                         }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- PREDICTION SYSTEM ---
+    class TrajectoryPredictor {
+        constructor() {
+            this.predictionDt = 0.2;
+            this.predictionDuration = 20.0;
+            this.noThreatSpeed = 340.0; // Mach 1
+        }
+
+        _simulateStep(x, y, vx, vy, rudder, throttle, isMissile, engineTime, dt) {
+            let terminalVelocity, clMax, maxThrust, liftDragRatio;
+            
+            if (isMissile) {
+                terminalVelocity = CONFIG.MISSILE_TERMINAL_VELOCITY;
+                clMax = 1.0 / CONFIG.MISSILE_MIN_TURN_RADIUS;
+                maxThrust = CONFIG.MISSILE_THRUST;
+                liftDragRatio = CONFIG.MISSILE_LIFT_DRAG_RATIO;
+            } else {
+                terminalVelocity = CONFIG.FIGHTER_TERMINAL_VELOCITY;
+                clMax = 1.0 / CONFIG.FIGHTER_MIN_TURN_RADIUS;
+                maxThrust = CONFIG.FIGHTER_MAX_THRUST;
+                liftDragRatio = CONFIG.FIGHTER_LIFT_DRAG_RATIO;
+            }
+            
+            const epsilon = 1e-7;
+            const vSquare = vx * vx + vy * vy;
+            const speed = Math.sqrt(vSquare);
+            const invV = 1.0 / (speed + epsilon);
+            
+            const nx = vx * invV;
+            const ny = vy * invV;
+            const pnx = -ny;
+            const pny = nx;
+            
+            const Cd0 = CONFIG.G / (terminalVelocity * terminalVelocity);
+            const Cl_intermediate = Math.abs(rudder) * clMax;
+            const k = 1.0 / (4.0 * Cd0 * (liftDragRatio * liftDragRatio) + epsilon);
+            const Cd = Cd0 + k * (Cl_intermediate * Cl_intermediate);
+            
+            const dragAccel = Cd * vSquare;
+            
+            let thrustAccel = 0;
+            if (isMissile) {
+                thrustAccel = engineTime > 0 ? maxThrust : 0.0;
+                engineTime = Math.max(0, engineTime - dt);
+            } else {
+                thrustAccel = throttle * maxThrust;
+            }
+            
+            const parallelAccelMag = thrustAccel - dragAccel;
+            const centripetalAccelMag = vSquare * clMax * rudder;
+            
+            const ax = nx * parallelAccelMag + pnx * centripetalAccelMag;
+            const ay = ny * parallelAccelMag + pny * centripetalAccelMag;
+            
+            const vxNew = vx + ax * dt;
+            const vyNew = vy + ay * dt;
+            const xNew = x + vxNew * dt;
+            const yNew = y + vyNew * dt;
+            
+            const newSpeed = Math.sqrt(vxNew * vxNew + vyNew * vyNew);
+            const newAngle = Math.atan2(vyNew, vxNew) * RAD2DEG;
+            
+            return {
+                x: xNew, y: yNew, 
+                vx: vxNew, vy: vyNew, 
+                speed: newSpeed, angle: newAngle, 
+                engineTime: engineTime
+            };
+        }
+
+        predictAircraftTrajectory(aircraft, rudder, duration = null) {
+            if (duration === null) duration = this.predictionDuration;
+            
+            let x = aircraft.x;
+            let y = aircraft.y;
+            let vx = aircraft.vx;
+            let vy = aircraft.vy;
+            let throttle = 1.0; 
+            
+            const points = [];
+            let time = 0.0;
+            
+            while (time <= duration) {
+                const speed = Math.sqrt(vx*vx + vy*vy);
+                const angle = Math.atan2(vy, vx) * RAD2DEG;
+                points.push({x, y, t: -time, speed, angle}); 
+                
+                const res = this._simulateStep(x, y, vx, vy, rudder, throttle, false, 0, this.predictionDt);
+                x = res.x; y = res.y; vx = res.vx; vy = res.vy;
+                time += this.predictionDt;
+            }
+            return points;
+        }
+
+        predictEscapeTrajectory(aircraft, rudder, enemyX, enemyY, duration = null) {
+            if (duration === null) duration = this.predictionDuration;
+            
+            let x = aircraft.x;
+            let y = aircraft.y;
+            let vx = aircraft.vx;
+            let vy = aircraft.vy;
+            let throttle = 1.0;
+            
+            const toEnemyX = enemyX - x;
+            const toEnemyY = enemyY - y;
+            const enemyDist = Math.sqrt(toEnemyX*toEnemyX + toEnemyY*toEnemyY);
+            
+            let escapeDirX, escapeDirY;
+            if (enemyDist > 1) {
+                escapeDirX = -toEnemyX / enemyDist;
+                escapeDirY = -toEnemyY / enemyDist;
+            } else {
+                const speed = Math.sqrt(vx*vx + vy*vy);
+                if (speed > 1) {
+                    escapeDirX = vx / speed;
+                    escapeDirY = vy / speed;
+                } else {
+                    escapeDirX = 1; escapeDirY = 0;
+                }
+            }
+            
+            const points = [];
+            let time = 0.0;
+            let currentRudder = rudder;
+            let hasTurnedAway = false;
+            const ESCAPE_THRESHOLD = 0.95;
+            
+            while (time <= duration) {
+                const speed = Math.sqrt(vx*vx + vy*vy);
+                const angle = Math.atan2(vy, vx) * RAD2DEG;
+                points.push({x, y, t: -time, speed, angle});
+                
+                if (!hasTurnedAway && speed > 1) {
+                    const velDirX = vx / speed;
+                    const velDirY = vy / speed;
+                    const dot = velDirX * escapeDirX + velDirY * escapeDirY;
+                    
+                    if (dot >= ESCAPE_THRESHOLD) {
+                        hasTurnedAway = true;
+                        currentRudder = 0;
+                    }
+                }
+                
+                const res = this._simulateStep(x, y, vx, vy, currentRudder, throttle, false, 0, this.predictionDt);
+                x = res.x; y = res.y; vx = res.vx; vy = res.vy;
+                time += this.predictionDt;
+            }
+            return points;
+        }
+
+        predictMissileTrajectory(missile, targetTrajectory, duration = null) {
+            if (duration === null) duration = this.predictionDuration;
+            
+            let x = missile.x;
+            let y = missile.y;
+            let vx = missile.vx;
+            let vy = missile.vy;
+            let engineTime = missile.engineTime || 0;
+            
+            const points = [];
+            let time = 0.0;
+            let stepIdx = 0;
+            
+            let initialSpeed = Math.sqrt(vx*vx + vy*vy);
+            let everSupersonic = initialSpeed >= this.noThreatSpeed;
+            
+            while (time <= duration) {
+                const speed = Math.sqrt(vx*vx + vy*vy);
+                const angle = Math.atan2(vy, vx) * RAD2DEG;
+                points.push({x, y, t: -time, speed, angle});
+                
+                if (speed >= this.noThreatSpeed) everSupersonic = true;
+                if (everSupersonic && speed < this.noThreatSpeed) break;
+                
+                let targetX, targetY;
+                if (targetTrajectory && targetTrajectory.length > 0) {
+                    if (stepIdx < targetTrajectory.length) {
+                        targetX = targetTrajectory[stepIdx].x;
+                        targetY = targetTrajectory[stepIdx].y;
+                    } else {
+                        targetX = targetTrajectory[targetTrajectory.length-1].x;
+                        targetY = targetTrajectory[targetTrajectory.length-1].y;
+                    }
+                } else {
+                    const res = this._simulateStep(x, y, vx, vy, 0, 1.0, true, engineTime, this.predictionDt);
+                    x = res.x; y = res.y; vx = res.vx; vy = res.vy; engineTime = res.engineTime;
+                    time += this.predictionDt;
+                    stepIdx++;
+                    continue;
+                }
+                
+                const dx = targetX - x;
+                const dy = targetY - y;
+                const targetAngle = Math.atan2(dy, dx) * RAD2DEG;
+                const angleDiff = (targetAngle - angle + 180) % 360 - 180;
+                
+                const rudder = clamp(angleDiff / 45.0, -1.0, 1.0);
+                
+                const res = this._simulateStep(x, y, vx, vy, rudder, 1.0, true, engineTime, this.predictionDt);
+                x = res.x; y = res.y; vx = res.vx; vy = res.vy; engineTime = res.engineTime;
+                
+                time += this.predictionDt;
+                stepIdx++;
+            }
+            return points;
+        }
+    }
+
+    class SpacetimePredictor {
+        constructor() {
+            this.predictor = new TrajectoryPredictor();
+            this.playerTrails = { 
+                1: { current: [], left: [], right: [] }, 
+                2: { current: [], left: [], right: [] } 
+            };
+            this.missileTrails = {}; 
+            this.lastUpdateTime = 0;
+            this.updateInterval = 0.5;
+        }
+
+        update(p1, p2, missiles, gameTime) {
+            if (gameTime - this.lastUpdateTime < this.updateInterval) return;
+            this.lastUpdateTime = gameTime;
+            
+            if (p1.alive) {
+                this.playerTrails[1].current = this.predictor.predictAircraftTrajectory(p1, p1.rudder || 0);
+                if (p2.alive) {
+                    this.playerTrails[1].left = this.predictor.predictEscapeTrajectory(p1, -1.0, p2.x, p2.y);
+                    this.playerTrails[1].right = this.predictor.predictEscapeTrajectory(p1, 1.0, p2.x, p2.y);
+                }
+            }
+            
+            if (p2.alive) {
+                this.playerTrails[2].current = this.predictor.predictAircraftTrajectory(p2, p2.rudder || 0);
+                if (p1.alive) {
+                    this.playerTrails[2].left = this.predictor.predictEscapeTrajectory(p2, -1.0, p1.x, p1.y);
+                    this.playerTrails[2].right = this.predictor.predictEscapeTrajectory(p2, 1.0, p1.x, p1.y);
+                }
+            }
+            
+            const activeIds = new Set(missiles.filter(m => m.alive).map(m => m.id));
+            for (let id in this.missileTrails) {
+                if (!activeIds.has(parseInt(id))) delete this.missileTrails[id];
+            }
+            
+            missiles.forEach(m => {
+                if (!m.alive) return;
+                
+                let targetTraj = [];
+                if (m.target) {
+                     const targetId = (m.target === p1) ? 1 : (m.target === p2 ? 2 : 0);
+                     if (targetId > 0) {
+                         targetTraj = this.playerTrails[targetId].current;
+                     }
+                }
+                this.missileTrails[m.id] = this.predictor.predictMissileTrajectory(m, targetTraj);
+            });
+        }
+    }
+
+    // --- SPACETIME VISUALIZATION ---
+    class SpacetimeView {
+        constructor(canvas, config) {
+            this.canvas = canvas;
+            this.ctx = canvas.getContext('2d');
+            this.config = config;
+            
+            // Camera Parameters
+            this.pitch = 30.0;
+            this.yaw = 0.0;
+            this.yaw1 = 0.0; // P1 Camera Yaw
+            this.yaw2 = 0.0; // P2 Camera Yaw
+            this.fov = 60.0;
+            this.distance = 30000.0;
+            this.worldScale = 1.0 / 25000.0;
+            this.timeScale = 1.0 / 20.0;
+            
+            this.focalLength = 1.0 / Math.tan((this.fov * 0.5) * DEG2RAD);
+            this.updateTransform();
+            
+            // Threat Cone Cache
+            this.missileEnvelope = [];
+            this.precomputeEnvelope();
+        }
+
+        precomputeEnvelope() {
+            // Precompute missile distance vs time for threat cone
+            // Based on MissileAnalyzer logic
+            const terminalVelocity = this.config.MISSILE_TERMINAL_VELOCITY;
+            const Cd0 = this.config.G / (terminalVelocity * terminalVelocity);
+            const thrust = this.config.MISSILE_THRUST;
+            
+            // Simulate for a range of initial speeds (0 to 600 m/s)
+            // We'll just do one table for now, assume missile inherits ~300m/s
+            // In a full implementation, this should be a lookup table based on launch speed
+            const speed = 300; 
+            const trajectory = MissileAnalyzer.simulateStraightFlight(speed);
+            
+            // Store distance at each second
+            this.missileEnvelope = trajectory;
+        }
+        
+        getMissileDistAtTime(t) {
+            // Find distance flown at time t
+            // Linear interpolation
+            if (t <= 0) return 0;
+            for (let i = 0; i < this.missileEnvelope.length - 1; i++) {
+                const p0 = this.missileEnvelope[i];
+                const p1 = this.missileEnvelope[i+1];
+                if (t >= p0.time && t <= p1.time) {
+                    const ratio = (t - p0.time) / (p1.time - p0.time);
+                    return p0.distance + (p1.distance - p0.distance) * ratio;
+                }
+            }
+            return this.missileEnvelope[this.missileEnvelope.length-1].distance;
+        }
+
+        updateTransform() {
+            const pitchRad = this.pitch * DEG2RAD;
+            const yawRad = this.yaw * DEG2RAD;
+            
+            this.cosPitch = Math.cos(pitchRad);
+            this.sinPitch = Math.sin(pitchRad);
+            this.cosYaw = Math.cos(yawRad);
+            this.sinYaw = Math.sin(yawRad);
+        }
+        
+        setYaw(yaw) {
+            this.yaw = yaw % 360;
+            this.updateTransform();
+        }
+
+        project(x, y, t, cx, cy, vx, vy, vw, vh) {
+            // 1. Translate to center
+            const dx = (x - cx) * this.worldScale;
+            const dy = (y - cy) * this.worldScale;
+            const dz = t * this.timeScale; 
+            
+            // 2. Yaw Rotation 
+            const rx = dx * this.cosYaw - dy * this.sinYaw;
+            const ry = dx * this.sinYaw + dy * this.cosYaw;
+            const rz = dz; 
+            
+            // 3. Pitch Rotation
+            const camX = -rx;
+            const camY = rz * this.cosPitch + ry * this.sinPitch;
+            const camZ = -rz * this.sinPitch + ry * this.cosPitch;
+            
+            // 4. Camera Distance
+            const finalZ = camZ + this.distance * this.worldScale;
+            
+            if (finalZ <= 0.1) return null; 
+            
+            // 5. Perspective
+            const invZ = 1.0 / finalZ;
+            const projX = camX * this.focalLength * invZ;
+            const projY = camY * this.focalLength * invZ;
+            
+            // 6. Screen Coords (mapped to Viewport)
+            const sx = vx + vw / 2 + projX * vw / 2;
+            const sy = vy + vh / 2 - projY * vh / 2;
+            
+            return { x: sx, y: sy, z: finalZ };
+        }
+
+        render(player, opponent, missiles, predictor, vx, vy, vw, vh, yaw) {
+            this.setYaw(yaw);
+            
+            const cx = player.x;
+            const cy = player.y;
+            
+            // Clip
+            this.ctx.save();
+            this.ctx.beginPath();
+            this.ctx.rect(vx, vy, vw, vh);
+            this.ctx.clip();
+            
+            // Background
+            this.ctx.fillStyle = '#050510';
+            this.ctx.fillRect(vx, vy, vw, vh);
+            
+            // Draw Grid (Time Slices)
+            this.ctx.lineWidth = 1;
+            const timeSlices = [0, 5, 10, 15]; 
+            
+            const range = 25000; 
+            const corners = [
+                {x: -range, y: -range}, {x: range, y: -range},
+                {x: range, y: range}, {x: -range, y: range}
+            ];
+            
+            timeSlices.forEach(t => {
+                const tVal = -t; 
+                this.ctx.strokeStyle = t === 0 ? '#444' : '#222';
+                this.ctx.beginPath();
+                
+                const pts = corners.map(c => this.project(cx + c.x, cy + c.y, tVal, cx, cy, vx, vy, vw, vh));
+                
+                if (pts.every(p => p)) {
+                    this.ctx.moveTo(pts[0].x, pts[0].y);
+                    for(let i=1; i<4; i++) this.ctx.lineTo(pts[i].x, pts[i].y);
+                    this.ctx.closePath();
+                }
+                this.ctx.stroke();
+                
+                // Label
+                if (pts[0]) {
+                    this.ctx.fillStyle = '#666';
+                    this.ctx.fillText(`T+${t}s`, pts[0].x, pts[0].y);
+                }
+            });
+            
+            // Draw Threat Cone
+            if (opponent && opponent.alive) {
+                this.drawThreatCone(player, opponent, cx, cy, vx, vy, vw, vh);
+            }
+
+            // Draw Predicted Trajectories
+            if (predictor) {
+                this.drawPredictions(predictor, cx, cy, vx, vy, vw, vh);
+            }
+            
+            // Draw Entities (Player, Opponent, Missiles)
+            if (player.alive) this.drawEntity(player, cx, cy, vx, vy, vw, vh);
+            if (opponent && opponent.alive) this.drawEntity(opponent, cx, cy, vx, vy, vw, vh);
+            
+            missiles.forEach(m => {
+               if (!m.alive) return;
+               this.drawEntity(m, cx, cy, vx, vy, vw, vh);
+               
+               // Trail
+               if (m.trail.length > 0) {
+                   this.ctx.strokeStyle = m.color;
+                   this.ctx.lineWidth = 1;
+                   this.ctx.beginPath();
+                   let first = true;
+                   m.trail.forEach((tp, i) => {
+                       const tOffset = (m.trail.length - 1 - i) * 0.1; 
+                       const pt = this.project(tp.x, tp.y, tOffset, cx, cy, vx, vy, vw, vh);
+                       if (pt) {
+                           if (first) { this.ctx.moveTo(pt.x, pt.y); first = false; }
+                           else this.ctx.lineTo(pt.x, pt.y);
+                       }
+                   });
+                   this.ctx.stroke();
+               }
+            });
+            
+            this.ctx.restore();
+        }
+
+        drawPredictions(predictor, cx, cy, vx, vy, vw, vh) {
+            // Helper to draw a line of points
+            const drawLine = (points, color, dash = []) => {
+                if (!points || points.length < 2) return;
+                
+                this.ctx.strokeStyle = color;
+                this.ctx.lineWidth = 2;
+                this.ctx.setLineDash(dash);
+                this.ctx.beginPath();
+                
+                let first = true;
+                points.forEach(p => {
+                    const proj = this.project(p.x, p.y, p.t, cx, cy, vx, vy, vw, vh);
+                    if (proj) {
+                        if (first) { this.ctx.moveTo(proj.x, proj.y); first = false; }
+                        else this.ctx.lineTo(proj.x, proj.y);
+                    }
+                });
+                this.ctx.stroke();
+                this.ctx.setLineDash([]);
+            };
+
+            // Player 1 Trails
+            if (predictor.playerTrails[1]) {
+                const t = predictor.playerTrails[1];
+                drawLine(t.current, '#00ffff'); // Current (Cyan)
+                drawLine(t.left, '#008888', [5, 5]); // Escape Left
+                drawLine(t.right, '#008888', [5, 5]); // Escape Right
+            }
+
+            // Player 2 Trails
+            if (predictor.playerTrails[2]) {
+                const t = predictor.playerTrails[2];
+                drawLine(t.current, '#ff00ff'); // Current (Magenta)
+                drawLine(t.left, '#880088', [5, 5]); // Escape Left
+                drawLine(t.right, '#880088', [5, 5]); // Escape Right
+            }
+
+            // Missile Trails
+            for (const id in predictor.missileTrails) {
+                drawLine(predictor.missileTrails[id], '#ffff00'); // Yellow
+            }
+        }
+        
+        drawEntity(e, cx, cy, vx, vy, vw, vh) {
+            const size = e.isMissile ? 400 : 800; // World units
+            const vecScale = 5.0; // Velocity vector represents 5 seconds
+            
+            const rad = e.angle * DEG2RAD;
+            const cos = Math.cos(rad);
+            const sin = Math.sin(rad);
+            
+            // 1. Triangle
+            // Tip: (size, 0)
+            // Rear Left: (-size, -size/2)
+            // Rear Right: (-size, size/2)
+            const pts = [
+                {x: size, y: 0},
+                {x: -size, y: -size*0.5},
+                {x: -size, y: size*0.5}
+            ];
+            
+            const worldPts = pts.map(p => ({
+                x: e.x + (p.x * cos - p.y * sin),
+                y: e.y + (p.x * sin + p.y * cos)
+            }));
+            
+            const projPts = worldPts.map(p => this.project(p.x, p.y, 0, cx, cy, vx, vy, vw, vh));
+            
+            if (projPts.every(p => p)) {
+                this.ctx.fillStyle = e.color;
+                this.ctx.beginPath();
+                this.ctx.moveTo(projPts[0].x, projPts[0].y);
+                this.ctx.lineTo(projPts[1].x, projPts[1].y);
+                this.ctx.lineTo(projPts[2].x, projPts[2].y);
+                this.ctx.closePath();
+                this.ctx.fill();
+            }
+            
+            // 2. Velocity Vector
+            // Start: (0,0) -> End: (speed*vecScale, 0)
+            const speed = e.speed;
+            const vecLen = speed * vecScale;
+            
+            const endX = e.x + vecLen * cos;
+            const endY = e.y + vecLen * sin;
+            
+            const pStart = this.project(e.x, e.y, 0, cx, cy, vx, vy, vw, vh);
+            const pEnd = this.project(endX, endY, 0, cx, cy, vx, vy, vw, vh);
+            
+            if (pStart && pEnd) {
+                this.ctx.strokeStyle = e.color;
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                this.ctx.moveTo(pStart.x, pStart.y);
+                this.ctx.lineTo(pEnd.x, pEnd.y);
+                this.ctx.stroke();
+            }
+
+            // 3. HUD (Mach/G)
+            if (pStart) {
+                this.ctx.font = "bold 28px monospace"; // 0.7x of original 40px
+                this.ctx.fillStyle = e.color;
+                this.ctx.textAlign = 'left';
+                
+                const mach = (e.speed / 340).toFixed(1);
+                const g = (e.gLoad || 0.0).toFixed(1);
+                
+                // Offset text slightly to right/bottom of center
+                this.ctx.fillText(`M${mach} G${g}`, pStart.x + 20, pStart.y + 20);
+            }
+        }
+
+        drawThreatCone(player, opponent, cx, cy, vx, vy, vw, vh) {
+            // Threat Cone: Represents missile reach if fired NOW
+            // Based on Python ThreatConeGenerator
+            
+            const times = [5, 10, 15, 20];
+            const sideFactor = 0.5;
+            const oppAngleRad = opponent.angle * DEG2RAD;
+            
+            this.ctx.strokeStyle = opponent.color; // Use opponent color
+            this.ctx.lineWidth = 1;
+            
+            // 1. Draw Time Slices (Semi-Ellipses)
+            times.forEach(t => {
+                const frontDist = this.getMissileDistAtTime(t);
+                const sideDist = frontDist * sideFactor;
+                
+                // Base position (Launch point)
+                const originX = opponent.x;
+                const originY = opponent.y;
+                
+                const steps = 18; // 180 degrees / 10
+                this.ctx.beginPath();
+                
+                // Draw arc from -90 to +90 relative to heading
+                for (let i = 0; i <= steps; i++) {
+                    const offsetDeg = -90 + (i / steps) * 180;
+                    const offsetRad = offsetDeg * DEG2RAD;
+                    
+                    // Ellipse Radius
+                    const sinO = Math.sin(offsetRad);
+                    const cosO = Math.cos(offsetRad);
+                    
+                    // r = 1 / sqrt((cos/a)^2 + (sin/b)^2)
+                    // a = frontDist, b = sideDist
+                    // Avoid div by zero
+                    const a = frontDist > 1 ? frontDist : 1;
+                    const b = sideDist > 1 ? sideDist : 1;
+                    
+                    const term1 = (cosO / a) ** 2;
+                    const term2 = (sinO / b) ** 2;
+                    const r = 1.0 / Math.sqrt(term1 + term2);
+                    
+                    // World Position
+                    const absAngle = oppAngleRad + offsetRad;
+                    const rx = originX + Math.cos(absAngle) * r;
+                    const ry = originY + Math.sin(absAngle) * r;
+                    
+                    const p = this.project(rx, ry, -t, cx, cy, vx, vy, vw, vh);
+                    if (p) {
+                        if (i === 0) this.ctx.moveTo(p.x, p.y);
+                        else this.ctx.lineTo(p.x, p.y);
+                    }
+                }
+                this.ctx.stroke();
+            });
+            
+            // 2. Draw Meridians (-90, 0, 90)
+            const meridianOffsets = [-90, 0, 90];
+            
+            meridianOffsets.forEach(offsetDeg => {
+                const offsetRad = offsetDeg * DEG2RAD;
+                const sideRatio = Math.abs(Math.cos(offsetRad)); // 1 at 0, 0 at 90
+                const distFactor = sideRatio + (1 - sideRatio) * sideFactor;
+                
+                this.ctx.beginPath();
+                
+                // Start from origin (t=0)
+                const p0 = this.project(opponent.x, opponent.y, 0, cx, cy, vx, vy, vw, vh);
+                if (p0) this.ctx.moveTo(p0.x, p0.y);
+                
+                // Draw line through time
+                const maxTime = 20;
+                for (let t = 1; t <= maxTime; t += 1) {
+                    const frontDist = this.getMissileDistAtTime(t);
+                    const dist = frontDist * distFactor;
+                    
+                    const absAngle = oppAngleRad + offsetRad;
+                    const rx = opponent.x + Math.cos(absAngle) * dist;
+                    const ry = opponent.y + Math.sin(absAngle) * dist;
+                    
+                    const p = this.project(rx, ry, -t, cx, cy, vx, vy, vw, vh);
+                    if (p) this.ctx.lineTo(p.x, p.y);
+                }
+                this.ctx.stroke();
+            });
+        }
+    }
+
+    // --- GAME ENTITIES ---
+    class Entity {
+        constructor(x, y, angle, speed, color, isPlayer1, isMissile) {
+            this.x = x;
+            this.y = y;
+            this.angle = angle;
+            this.speed = speed;
+            this.color = color;
+            this.isPlayer1 = isPlayer1;
+            this.isMissile = isMissile;
+            this.alive = true;
+            
+            const rad = angle * DEG2RAD;
+            this.vx = Math.cos(rad) * speed;
+            this.vy = Math.sin(rad) * speed;
+            
+            this.rudder = 0.0;
+            this.throttle = 1.0;
+            this.trail = [];
+            this.trailTimer = 0;
+            
+            if (isMissile) {
+                this.engineTime = CONFIG.MISSILE_ENGINE_DURATION;
+                this.target = null;
+            } else {
+                this.missiles = CONFIG.FIGHTER_MISSILES;
+                this.gLoad = 0.0;
+            }
+        }
+    }
+
+    // --- MAIN GAME CLASS ---
+    class Game {
+        constructor() {
+            this.canvas = document.getElementById('gameCanvas');
+            this.ctx = this.canvas.getContext('2d');
+            this.lastTime = 0;
+            this.gameTime = 0;
+            
+            // View Mode: 'standard' or 'spacetime'
+            this.viewMode = 'standard';
+            this.spacetimeView = new SpacetimeView(this.canvas, CONFIG);
+            this.predictor = new SpacetimePredictor(CONFIG);
+            
+            this.guidance = new MissileGuidance();
+            this.entities = {
+                p1: null,
+                p2: null,
+                missiles: []
+            };
+            
+            // Input State for two players
+            this.input = {
+                p1: { rudder: 0, joyRudder: 0, keyRudder: 0, fire: false },
+                p2: { rudder: 0, joyRudder: 0, keyRudder: 0, fire: false }
+            };
+            
+            // Keyboard State
+            this.keys = {};
+            
+            this.lastFireTimeP1 = 0;
+            this.lastFireTimeP2 = 0;
+            this.gameOver = false;
+            
+            this.setupInputs();
+            this.resize();
+            window.addEventListener('resize', () => this.resize());
+        }
+
+        resize() {
+            this.canvas.width = window.innerWidth;
+            this.canvas.height = window.innerHeight;
+        }
+
+        setupInputs() {
+            // Helper for Joystick Setup
+            const setupJoystick = (zoneId, stickId, playerId) => {
+                const joyZone = document.getElementById(zoneId);
+                const joyStick = document.getElementById(stickId);
+                let joyActive = false;
+                let joyStartX = 0;
+                let activeTouchId = null;
+                const maxDist = 40; // radius
+
+                const handleStart = (e) => {
+                    // Ignore if already active
+                    if (joyActive) return;
+
+                    const touch = e.changedTouches ? e.changedTouches[0] : e;
+                    activeTouchId = touch.identifier;
+                    joyActive = true;
+                    joyStartX = touch.clientX;
+                    e.preventDefault();
+                };
+
+                const handleMove = (e) => {
+                    if (!joyActive) return;
+                    
+                    let touch = e;
+                    if (e.changedTouches) {
+                        for (let i=0; i<e.changedTouches.length; i++) {
+                            if (e.changedTouches[i].identifier === activeTouchId) {
+                                touch = e.changedTouches[i];
+                                break;
+                            }
+                        }
+                        // If touch not found in this event, return
+                        if (touch === e) return; 
+                    }
+
+                    const deltaX = touch.clientX - joyStartX;
+                    const clampedX = clamp(deltaX, -maxDist, maxDist);
+                    
+                    joyStick.style.transform = `translate(${clampedX}px, 0)`;
+                    this.input[playerId].joyRudder = clampedX / maxDist;
+                    if (e.cancelable) e.preventDefault();
+                };
+
+                const handleEnd = (e) => {
+                    if (!joyActive) return;
+                    
+                    let touchFound = false;
+                    if (e.changedTouches) {
+                        for (let i=0; i<e.changedTouches.length; i++) {
+                            if (e.changedTouches[i].identifier === activeTouchId) {
+                                touchFound = true;
+                                break;
+                            }
+                        }
+                    } else {
+                        touchFound = true; // Mouse
+                    }
+
+                    if (touchFound) {
+                        joyActive = false;
+                        activeTouchId = null;
+                        joyStick.style.transform = `translate(0, 0)`;
+                        this.input[playerId].joyRudder = 0;
+                        e.preventDefault();
+                    }
+                };
+
+                joyZone.addEventListener('mousedown', handleStart);
+                joyZone.addEventListener('touchstart', handleStart);
+                
+                // Attach move/end to document to handle dragging out of zone
+                document.addEventListener('mousemove', handleMove);
+                document.addEventListener('mouseup', handleEnd);
+                document.addEventListener('touchmove', handleMove, {passive: false});
+                document.addEventListener('touchend', handleEnd);
+            };
+
+            setupJoystick('p1-joystick-zone', 'p1-joystick-stick', 'p1');
+            setupJoystick('p2-joystick-zone', 'p2-joystick-stick', 'p2');
+
+            // Fire Buttons
+            const setupFire = (btnId, playerId) => {
+                const btn = document.getElementById(btnId);
+                const action = (e) => {
+                    this.input[playerId].fire = true;
+                    e.preventDefault();
+                };
+                btn.addEventListener('mousedown', action);
+                btn.addEventListener('touchstart', action);
+            };
+
+            setupFire('p1-fire-btn', 'p1');
+            setupFire('p2-fire-btn', 'p2');
+            
+            // UI Buttons
+            document.getElementById('start-btn').addEventListener('click', () => {
+                document.getElementById('start-screen').style.display = 'none';
+                this.reset();
+                this.start();
+            });
+            
+            document.getElementById('restart-btn').addEventListener('click', () => {
+                document.getElementById('game-over').style.display = 'none';
+                this.returnToMenu();
+            });
+
+            // Settings Button
+            document.getElementById('settings-btn').addEventListener('click', () => {
+                this.openSettings();
+            });
+
+            // Save Settings
+            document.getElementById('save-settings-btn').addEventListener('click', () => {
+                this.saveSettings();
+            });
+
+            // Envelope Analysis
+            document.getElementById('missile-envelope-btn').addEventListener('click', () => {
+                document.getElementById('envelope-screen').style.display = 'flex';
+                const slider = document.getElementById('env-speed-slider');
+                MissileAnalyzer.drawEnvelope('envelope-canvas', parseFloat(slider.value));
+            });
+
+            document.getElementById('close-envelope-btn').addEventListener('click', () => {
+                document.getElementById('envelope-screen').style.display = 'none';
+            });
+
+            // Aero Curves Analysis
+            document.getElementById('aero-curves-btn').addEventListener('click', () => {
+                document.getElementById('aero-screen').style.display = 'flex';
+                AeroAnalyzer.drawCurves('aero-canvas');
+            });
+
+            document.getElementById('close-aero-btn').addEventListener('click', () => {
+                document.getElementById('aero-screen').style.display = 'none';
+            });
+
+            const slider = document.getElementById('env-speed-slider');
+            slider.addEventListener('input', () => {
+                document.getElementById('env-speed-val').innerText = slider.value;
+                MissileAnalyzer.drawEnvelope('envelope-canvas', parseFloat(slider.value));
+            });
+
+            // In-Game Menu Button
+            document.getElementById('in-game-menu-btn').addEventListener('click', () => {
+                this.returnToMenu();
+            });
+
+            // Toggle View Button
+            document.getElementById('toggle-view-btn').addEventListener('click', () => {
+                this.toggleView();
+            });
+
+            // Keyboard Listeners
+            window.addEventListener('keydown', (e) => {
+                this.keys[e.code] = true;
+                
+                if (e.code === 'KeyV') {
+                    this.toggleView();
+                }
+
+                // Prevent scrolling with arrows/space
+                if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].indexOf(e.code) > -1) {
+                    e.preventDefault();
+                }
+            });
+            window.addEventListener('keyup', (e) => {
+                this.keys[e.code] = false;
+            });
+
+            // Camera Touch Control (Spacetime View)
+            let lastTouchX = {};
+
+            this.canvas.addEventListener('touchstart', (e) => {
+                if (this.viewMode !== 'spacetime') return;
+                
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    const t = e.changedTouches[i];
+                    lastTouchX[t.identifier] = t.clientX;
+                }
+            }, {passive: false});
+
+            this.canvas.addEventListener('touchmove', (e) => {
+                if (this.viewMode !== 'spacetime') return;
+                e.preventDefault(); // Prevent scrolling
+                
+                const sensitivity = 0.5; // Degrees per pixel
+                const rect = this.canvas.getBoundingClientRect();
+                const midX = rect.left + rect.width / 2;
+
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    const t = e.changedTouches[i];
+                    const id = t.identifier;
+                    if (lastTouchX[id] !== undefined) {
+                        const dx = t.clientX - lastTouchX[id];
+                        
+                        // Determine side based on touch position
+                        if (t.clientX < midX) {
+                            this.spacetimeView.yaw1 -= dx * sensitivity;
+                        } else {
+                            this.spacetimeView.yaw2 -= dx * sensitivity;
+                        }
+                        
+                        lastTouchX[id] = t.clientX;
+                    }
+                }
+            }, {passive: false});
+
+            this.canvas.addEventListener('touchend', (e) => {
+                 for (let i = 0; i < e.changedTouches.length; i++) {
+                    delete lastTouchX[e.changedTouches[i].identifier];
+                }
+            });
+        }
+
+        toggleView() {
+            this.viewMode = this.viewMode === 'standard' ? 'spacetime' : 'standard';
+        }
+
+        openSettings() {
+            const container = document.getElementById('settings-content');
+            container.innerHTML = '';
+            document.getElementById('settings-screen').style.display = 'flex';
+            
+            for (const key in CONFIG) {
+                const row = document.createElement('div');
+                row.style.display = 'flex';
+                row.style.justifyContent = 'space-between';
+                row.style.marginBottom = '10px';
+                row.style.width = '100%';
+                
+                const label = document.createElement('label');
+                label.innerText = key;
+                label.style.flex = '1';
+                
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.value = CONFIG[key];
+                input.id = `config-${key}`;
+                input.style.flex = '0 0 100px';
+                input.style.marginLeft = '10px';
+                input.step = '0.1';
+                
+                row.appendChild(label);
+                row.appendChild(input);
+                container.appendChild(row);
+            }
+        }
+
+        saveSettings() {
+            for (const key in CONFIG) {
+                const input = document.getElementById(`config-${key}`);
+                if (input) {
+                    CONFIG[key] = parseFloat(input.value);
+                }
+            }
+            updateDerivedConstants();
+            document.getElementById('settings-screen').style.display = 'none';
+        }
+
+        returnToMenu() {
+            this.gameOver = true; // Stop loop
+            document.getElementById('game-over').style.display = 'none';
+            document.getElementById('start-screen').style.display = 'flex';
+        }
+
+        reset() {
+            // Initial positions
+            const size = CONFIG.BATTLEFIELD_SIZE;
+            const distRatio = CONFIG.INITIAL_DISTANCE_RATIO;
+            
+            const p1x = size * distRatio;
+            const p1y = size * distRatio;
+            const p2x = size * (1 - distRatio);
+            const p2y = size * (1 - distRatio);
+            
+            const center = size / 2;
+            const p1Angle = Math.atan2(center - p1y, center - p1x) * RAD2DEG;
+            const p2Angle = Math.atan2(center - p2y, center - p2x) * RAD2DEG;
+            
+            this.entities.p1 = new Entity(p1x, p1y, p1Angle, 300, '#f00', true, false);
+            this.entities.p2 = new Entity(p2x, p2y, p2Angle, 300, '#00f', false, false);
+            this.entities.missiles = [];
+            
+            this.gameTime = 0;
+            this.lastFireTimeP1 = 0;
+            this.lastFireTimeP2 = 0;
+            this.gameOver = false;
+            this.guidance.history.clear();
+        }
+
+        start() {
+            this.lastTime = performance.now();
+            requestAnimationFrame((t) => this.loop(t));
+        }
+
+        loop(now) {
+            if (this.gameOver) return;
+
+            const dt = (now - this.lastTime) / 1000;
+            this.lastTime = now;
+            
+            // Limit dt to avoid huge jumps
+            const safeDt = Math.min(dt, 0.1);
+            
+            this.update(safeDt);
+            this.render();
+            
+            requestAnimationFrame((t) => this.loop(t));
+        }
+
+        update(dt) {
+            this.gameTime += dt;
+
+            // Update Predictions
+            this.predictor.update(this.entities.p1, this.entities.p2, this.entities.missiles, this.gameTime);
+            
+            // --- Update Player 1 ---
+            this.handleKeyboard(this.input.p1, 'p1');
+            this.updatePlayer(this.entities.p1, this.input.p1, dt);
+            
+            // --- Update Player 2 ---
+            this.handleKeyboard(this.input.p2, 'p2');
+            this.updatePlayer(this.entities.p2, this.input.p2, dt);
+
+            // --- Camera Update ---
+            this.handleCameraInput(dt);
+
+            // --- Fire Logic ---
+            if (this.input.p1.fire) {
+                this.fireMissile(this.entities.p1, this.entities.p2);
+                this.input.p1.fire = false;
+            }
+            if (this.input.p2.fire) {
+                this.fireMissile(this.entities.p2, this.entities.p1);
+                this.input.p2.fire = false;
+            }
+
+            // --- Physics Update ---
+            if (this.entities.p1.alive) Aerodynamic.calculatePhysics(this.entities.p1, dt);
+            if (this.entities.p2.alive) Aerodynamic.calculatePhysics(this.entities.p2, dt);
+            
+            for (let i = this.entities.missiles.length - 1; i >= 0; i--) {
+                const m = this.entities.missiles[i];
+                // Guidance
+                if (m.target && m.target.alive) {
+                    m.rudder = this.guidance.calculateGuidance(m, m.target, this.gameTime);
+                } else {
+                    m.rudder = 0;
+                }
+                
+                Aerodynamic.calculatePhysics(m, dt);
+                
+                // Collision / Timeout check
+                let remove = false;
+                
+                // Hit check
+                if (m.target && m.target.alive) {
+                    const dx = m.x - m.target.x;
+                    const dy = m.y - m.target.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist < CONFIG.HIT_RADIUS) {
+                        m.target.alive = false;
+                        remove = true;
+                    }
+                }
+                
+                // Low speed check (Self destruct)
+                if (m.speed < CONFIG.SELF_DESTRUCT_SPEED) remove = true;
+                
+                if (remove) {
+                    this.entities.missiles.splice(i, 1);
+                }
+            }
+            
+            // Trails
+            this.updateTrails();
+            
+            // Check Game Over
+            if (!this.entities.p1.alive || !this.entities.p2.alive) {
+                this.gameOver = true;
+                let winner = "";
+                if (!this.entities.p1.alive && !this.entities.p2.alive) winner = "DRAW!";
+                else if (this.entities.p1.alive) winner = "P1 WINS!";
+                else winner = "P2 WINS!";
+                
+                document.getElementById('winner-text').innerText = winner;
+                document.getElementById('game-over').style.display = 'flex';
+            }
+            
+            // Update UI
+            this.updateUI('p1', this.entities.p1);
+            this.updateUI('p2', this.entities.p2);
+        }
+        
+        handleKeyboard(inputState, playerPrefix) {
+            // Reset key rudder
+            inputState.keyRudder = 0.0;
+            
+            // P1: A/D, T
+            if (playerPrefix === 'p1') {
+                if (this.keys['KeyA']) inputState.keyRudder = -1.0;
+                else if (this.keys['KeyD']) inputState.keyRudder = 1.0;
+                
+                if (this.keys['KeyT']) inputState.fire = true;
+            }
+            // P2: Left/Right, =
+            else {
+                if (this.keys['ArrowLeft']) inputState.keyRudder = -1.0;
+                else if (this.keys['ArrowRight']) inputState.keyRudder = 1.0;
+                
+                if (this.keys['Equal']) inputState.fire = true;
+            }
+            
+            // Combine Inputs
+            inputState.rudder = clamp(inputState.joyRudder + inputState.keyRudder, -1.0, 1.0);
+        }
+
+        handleCameraInput(dt) {
+            if (this.viewMode !== 'spacetime') return;
+
+            const speed = 90.0; // Degrees per second
+
+            // P1 Camera (Q/E)
+            if (this.keys['KeyQ']) {
+                this.spacetimeView.yaw1 -= speed * dt;
+            }
+            if (this.keys['KeyE']) {
+                this.spacetimeView.yaw1 += speed * dt;
+            }
+
+            // P2 Camera (9/0)
+            if (this.keys['Digit9']) {
+                this.spacetimeView.yaw2 -= speed * dt;
+            }
+            if (this.keys['Digit0']) {
+                this.spacetimeView.yaw2 += speed * dt;
+            }
+        }
+
+        updatePlayer(entity, input, dt) {
+            if (!entity.alive) return;
+            
+            // Rudder
+            const rudderInput = input.rudder;
+            if (Math.abs(rudderInput) > 0.01) {
+                entity.rudder += 1.0 * dt * rudderInput;
+            } else {
+                // Return to center
+                if (entity.rudder > 0) entity.rudder = Math.max(0, entity.rudder - 1.0 * dt);
+                else entity.rudder = Math.min(0, entity.rudder + 1.0 * dt);
+            }
+            entity.rudder = clamp(entity.rudder, -1.0, 1.0);
+            
+            // Throttle Fixed to Max
+            entity.throttle = 1.0; 
+        }
+
+        updateUI(prefix, entity) {
+            document.getElementById(`${prefix}-speed`).innerText = Math.round(entity.speed);
+            document.getElementById(`${prefix}-hdg`).innerText = Math.round(entity.angle);
+            document.getElementById(`${prefix}-omega`).innerText = entity.omega ? entity.omega.toFixed(1) : "0.0";
+            document.getElementById(`${prefix}-g`).innerText = entity.gLoad.toFixed(1);
+            document.getElementById(`${prefix}-msl`).innerText = entity.missiles;
+        }
+
+        fireMissile(source, target) {
+            if (source.missiles <= 0 || !source.alive) return;
+            
+            // Check cooldown
+            const lastFire = source === this.entities.p1 ? this.lastFireTimeP1 : this.lastFireTimeP2;
+            if (this.gameTime - lastFire < CONFIG.FIRE_COOLDOWN) return;
+            
+            if (source === this.entities.p1) this.lastFireTimeP1 = this.gameTime;
+            else this.lastFireTimeP2 = this.gameTime;
+            
+            source.missiles--;
+            
+            const offset = 20;
+            const rad = source.angle * DEG2RAD;
+            const mx = source.x + Math.cos(rad) * offset;
+            const my = source.y + Math.sin(rad) * offset;
+            
+            const m = new Entity(mx, my, source.angle, source.speed, source.color, source.isPlayer1, true);
+            m.vx = source.vx;
+            m.vy = source.vy;
+            m.target = target;
+            m.color = source.isPlayer1 ? '#faa' : '#aaf';
+            
+            this.entities.missiles.push(m);
+        }
+
+        updateTrails() {
+            const interval = 5;
+            const all = [this.entities.p1, this.entities.p2, ...this.entities.missiles];
+            for (const e of all) {
+                if (!e.alive) continue;
+                e.trailTimer++;
+                if (e.trailTimer >= interval) {
+                    e.trail.push({x: e.x, y: e.y});
+                    if (e.trail.length > 200) e.trail.shift();
+                    e.trailTimer = 0;
+                }
+            }
+        }
+
+        render() {
+            const ctx = this.ctx;
+            const w = this.canvas.width;
+            const h = this.canvas.height;
+            
+            // Clear
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, w, h);
+            
+                if (this.viewMode === 'spacetime') {
+                    // Spacetime Mode
+                    this.spacetimeView.render(this.entities.p1, this.entities.p2, this.entities.missiles, this.predictor, 0, 0, w/2, h, this.spacetimeView.yaw1);
+                    this.spacetimeView.render(this.entities.p2, this.entities.p1, this.entities.missiles, this.predictor, w/2, 0, w/2, h, this.spacetimeView.yaw2);
+                } else {
+                    // Standard Mode
+                    this.renderView(0, 0, w/2, h, this.entities.p1, this.entities.p2);
+                    this.renderView(w/2, 0, w/2, h, this.entities.p2, this.entities.p1);
+                }
+        }
+        
+        renderView(vx, vy, vw, vh, player, opponent) {
+            const ctx = this.ctx;
+            ctx.save();
+            
+            // Set clipping region
+            ctx.beginPath();
+            ctx.rect(vx, vy, vw, vh);
+            ctx.clip();
+            
+            // Background for view
+            ctx.fillStyle = '#111';
+            ctx.fillRect(vx, vy, vw, vh);
+            
+            // Camera Setup
+            const cx = vx + vw / 2;
+            const cy = vy + vh / 2;
+            
+            // Scale: Map 50km to view width
+            const viewWorldWidth = 50000;
+            const scale = vw / viewWorldWidth;
+            
+            ctx.translate(cx, cy);
+            ctx.scale(scale, scale);
+            
+            // Center on player, BUT keep rotation fixed (North Up) or Player Up?
+            // Python version was "North Up" (fixed orientation). Let's stick to that for now.
+            // If we want "Cockpit View" (Player Up), we would rotate context by -player.angle.
+            // User asked for "View", let's assume standard top-down for now.
+            
+            if (player.alive) {
+                ctx.translate(-player.x, -player.y);
+            } else {
+                // If dead, stay where they died
+                ctx.translate(-player.x, -player.y);
+            }
+            
+            // Draw Grid
+            this.drawGrid(ctx, player.x, player.y, viewWorldWidth);
+            
+            // Draw Trails
+            ctx.lineWidth = 5 / scale;
+            
+            const drawTrail = (e) => {
+                if (e.trail.length < 2) return;
+                ctx.beginPath();
+                ctx.strokeStyle = e.color;
+                ctx.globalAlpha = 0.5;
+                ctx.moveTo(e.trail[0].x, e.trail[0].y);
+                for (let i = 1; i < e.trail.length; i++) {
+                    ctx.lineTo(e.trail[i].x, e.trail[i].y);
+                }
+                ctx.stroke();
+                ctx.globalAlpha = 1.0;
+            };
+            
+            drawTrail(this.entities.p1);
+            drawTrail(this.entities.p2);
+            for (const m of this.entities.missiles) drawTrail(m);
+            
+            // Draw Entities
+            const drawEntity = (e, size) => {
+                if (!e.alive) return;
+                ctx.save();
+                ctx.translate(e.x, e.y);
+                
+                // Draw Body
+                ctx.save();
+                ctx.rotate(e.angle * DEG2RAD);
+                ctx.fillStyle = e.color;
+                
+                ctx.beginPath();
+                if (e.isMissile) {
+                    ctx.moveTo(size, 0);
+                    ctx.lineTo(-size, -size/3);
+                    ctx.lineTo(-size, size/3);
+                } else {
+                    ctx.moveTo(size, 0);
+                    ctx.lineTo(-size, -size/2);
+                    ctx.lineTo(-size/2, 0);
+                    ctx.lineTo(-size, size/2);
+                }
+                ctx.fill();
+                ctx.restore(); // End rotation
+                
+                // Draw Labels (Upright)
+                const fontSize = (40 * 0.7) / scale; // Scaled font size (0.7x)
+                ctx.font = `bold ${fontSize}px monospace`;
+                ctx.fillStyle = e.color; // Faction color
+                ctx.textAlign = 'left';
+                
+                const mach = (e.speed / 340).toFixed(1);
+                const g = (e.gLoad || 0.0).toFixed(1);
+                
+                // Draw text slightly offset
+                const textX = size * 1.2;
+                const textY = size * 0.5;
+                
+                ctx.fillText(`M${mach} G${g}`, textX, textY);
+                
+                ctx.restore();
+            };
+            
+            // Enlarge entities: 3000 for fighters, 1000 for missiles (approx 2.5x visible size relative to previous attempt, or 10x original)
+            drawEntity(this.entities.p1, 1000);
+            drawEntity(this.entities.p2, 1000);
+            for (const m of this.entities.missiles) drawEntity(m, 1000);
+            
+            // --- Off-screen Indicator (Triangle) ---
+            if (opponent && opponent.alive && player.alive) {
+                const dx = opponent.x - player.x;
+                const dy = opponent.y - player.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                
+                // If target is roughly off-screen
+                // View covers viewWorldWidth (50000). Radius is 25000.
+                if (dist > viewWorldWidth / 2 * 0.9) {
+                    const angle = Math.atan2(dy, dx);
+                    
+                    // Reset transform to draw UI elements on top of view
+                    ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset to identity
+                    
+                    // Calculate center of this view
+                    const cx = vx + vw / 2;
+                    const cy = vy + vh / 2;
+                    
+                    // Radius of the indicator circle (slightly smaller than half width/height)
+                    const radius = Math.min(vw, vh) / 2 - 30;
+                    
+                    const ix = cx + Math.cos(angle) * radius;
+                    const iy = cy + Math.sin(angle) * radius;
+                    
+                    // Draw Triangle
+                    ctx.translate(ix, iy);
+                    ctx.rotate(angle); // angle points TO target
+                    
+                    ctx.beginPath();
+                    ctx.strokeStyle = opponent.color;
+                    ctx.lineWidth = 2;
+                    
+                    // Hollow Triangle pointing right (0 deg)
+                    const s = 10;
+                    ctx.moveTo(s, 0);
+                    ctx.lineTo(-s, -s/2);
+                    ctx.lineTo(-s, s/2);
+                    ctx.closePath();
+                    ctx.stroke();
+                }
+            }
+
+            ctx.restore();
+        }
+        
+        drawGrid(ctx, centerX, centerY, viewWidth) {
+            const gridSize = 5000;
+            const startX = Math.floor((centerX - viewWidth) / gridSize) * gridSize;
+            const endX = Math.floor((centerX + viewWidth) / gridSize) * gridSize;
+            const startY = Math.floor((centerY - viewWidth) / gridSize) * gridSize;
+            const endY = Math.floor((centerY + viewWidth) / gridSize) * gridSize;
+            
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 100; // Thicker lines for visibility at high zoom out
+
+            
+            ctx.beginPath();
+            for (let x = startX; x <= endX; x += gridSize) {
+                ctx.moveTo(x, startY);
+                ctx.lineTo(x, endY);
+            }
+            for (let y = startY; y <= endY; y += gridSize) {
+                ctx.moveTo(startX, y);
+                ctx.lineTo(endX, y);
+            }
+            ctx.stroke();
+            
+            // Draw Battlefield Border - REMOVED for infinite map
+            // ctx.strokeStyle = '#fff';
+            // ctx.lineWidth = 50; 
+            // ctx.strokeRect(0, 0, CONFIG.BATTLEFIELD_SIZE, CONFIG.BATTLEFIELD_SIZE);
+        }
+    }
+
+    // --- INIT ---
+    window.onload = () => {
+        const game = new Game();
+    };
+
+    </script>
+</body>
+</html>

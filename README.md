@@ -37,7 +37,7 @@ midrangeRL/
 │   └── spacetime_core.py  # CPU模式的时空图计算
 ├── train.py       # 训练入口（命令行参数选择 agent/reward/并行数等）
 ├── game_play.py   # 游戏主程序
-└── config.py      # 配置文件
+└── config.py      # 配置文件6*5
 ```
 
 ## 训练脚本
@@ -57,14 +57,14 @@ python train.py --agent ppo_agent --opponent crank --reward zero --num-envs 256 
 ## RoadMap
 
 近期：
+- [ ] 开发能在手机浏览器上运行的html版游戏，让广大军迷评价参数拟真性和时空图实用性
 - [ ] 修复GPU版时空图的全力脱离线不符合要求的问题
 - [ ] 整合GPU版时空图与奖励函数
-- [ ] 设计知道躲避导弹的规则式agent
-- [ ] 实现基于时空图的agent
+- [ ] 设计知道躲避导弹的规则式agent：更改crank
+- [ ] 实现基于时空图的agent：STG_ppo1、STG_rule_based
 - [ ] 将带SGT与非SGT的agent训练至可用水平进行对比
 
 长远：
-- [ ] 开发能在手机浏览器上运行的html版游戏，让广大军迷评价agent性能和参数拟真性
 - [ ] 基于扩散模型的时空图概率云模式
 - [ ] 指挥型agent/互相掩护的编队战术
 
