@@ -16,6 +16,7 @@ import os
 # 导入环境组件
 from visualization import Visualizer, get_system_font
 from env_numpy.numpy_env import NumpyEnv
+from env_warp.warp_env import WarpEnv
 from config import CONFIG
 from controllers import PlayerController, HumanController, ModelController
 
@@ -49,16 +50,11 @@ class Game:
         # 初始化字体
         self.font = get_system_font()
         
-        # 初始化时空图组件 (Tensor后端)
+        # 初始化时空图组件 (Warp后端)
         self.spacetime_computer = None
-        if self.env_backend == 'tensor':
-            try:
-                from spacetime.tensor_spacetime import TensorSpacetimeComputer
-                # Game uses CPU for TensorEnv
-                self.spacetime_computer = TensorSpacetimeComputer(self.config, num_envs=1, device='cpu')
-                self.spacetime_computer.initialize()
-            except ImportError:
-                print("Warning: TensorSpacetimeComputer not available.")
+        # TensorSpacetimeComputer 已被移除，Warp版时空图尚未实现
+        # if self.env_backend == 'warp':
+        #     ...
 
         # 初始化可视化系统
         self.visualizer = Visualizer(WINDOW_WIDTH, WINDOW_HEIGHT, self.config, self.font, 
@@ -114,9 +110,8 @@ class Game:
         """创建环境实例"""
         if self.env_backend == 'numpy':
             return NumpyEnv(self.config)
-        elif self.env_backend == 'tensor':
-            from env_gym.tensor_env import TensorEnv
-            return TensorEnv(self.config, num_envs=1, device='cpu')
+        elif self.env_backend == 'warp':
+            return WarpEnv(self.config, num_envs=1, device='cuda')
         else:
             raise ValueError(f"Unknown env_backend: {self.env_backend}")
     
@@ -167,8 +162,8 @@ class Game:
         self.game_over = render_state['game_over']
         self.winner = render_state['winner']
         
-        # 为 tensor 后端维护轨迹
-        if self.env_backend == 'tensor':
+        # 为 warp 后端维护轨迹
+        if self.env_backend == 'warp':
             self._trail_update_counter += 1
             if self._trail_update_counter >= 5:  # 每5帧更新一次轨迹
                 self._trail_update_counter = 0
@@ -310,21 +305,45 @@ if __name__ == '__main__':
     import argparse
     
     parser = argparse.ArgumentParser(description='中距空战游戏')
-    parser.add_argument('--backend', type=str, default='numpy', choices=['numpy', 'tensor'],
-                        help='环境后端: numpy(默认) 或 tensor')
+    parser.add_argument('--backend', type=str, default='numpy', choices=['numpy', 'warp'],
+                        help='环境后端: numpy(默认) 或 warp')
     parser.add_argument('--red_type', type=str, default='human', choices=['human', 'ai'],
                         help='红方控制类型: human(默认) 或 ai')
     parser.add_argument('--blue_type', type=str, default='human', choices=['human', 'ai'],
                         help='蓝方控制类型: human(默认) 或 ai')
-    parser.add_argument('--red_agent', type=str, default='crank', choices=['crank'],
-                        help='红方 Agent 类型 (当 red_type=ai 时生效): crank')
-    parser.add_argument('--blue_agent', type=str, default='crank', choices=['crank'],
-                        help='蓝方 Agent 类型 (当 blue_type=ai 时生效): crank')
+    parser.add_argument('--red_agent', type=str, default='phase2', choices=['phase2', 'phase3'],
+                        help='红方 Agent 类型 (当 red_type=ai 时生效)')
+    parser.add_argument('--blue_agent', type=str, default='phase2', choices=['phase2', 'phase3'],
+                        help='蓝方 Agent 类型 (当 blue_type=ai 时生效)')
     args = parser.parse_args()
     
+    # Helper to load PPO agent
+    def load_ppo_agent(device='cpu'):
+        import os
+        import glob
+        from agents.learned.ppo_agent_discrete import DiscretePPOAgent
+        
+        agent = DiscretePPOAgent(device=device, num_envs=1)
+        
+        # Find latest checkpoint
+        checkpoints = glob.glob('checkpoints/ppo_step_*.pt')
+        if not checkpoints:
+            print("Warning: No PPO checkpoints found. Using random init.")
+            return agent
+            
+        latest_ckpt = max(checkpoints, key=os.path.getctime)
+        print(f"Loading PPO agent from {latest_ckpt}")
+        agent.load(latest_ckpt)
+        return agent
+
     # Agent 类型映射
     AGENT_REGISTRY = {
-        'crank': lambda: __import__('agents.rule_based.rule_agent', fromlist=['CrankAgent']).CrankAgent(device='cpu')
+        # 'crank': lambda: __import__('agents.rule_based.rule_agent', fromlist=['CrankAgent']).CrankAgent(device='cpu')
+        # CrankAgent 已被删除，暂无默认 rule_based agent
+        # 如果需要，可以添加 curriculum_agents 中的 agent
+        'phase2': lambda: __import__('agents.rule_based.curriculum_agents', fromlist=['Phase2Opponent']).Phase2Opponent(device='cpu', num_envs=1),
+        'phase3': lambda: __import__('agents.rule_based.curriculum_agents', fromlist=['Phase3Opponent']).Phase3Opponent(device='cpu', num_envs=1),
+        'ppo': lambda: load_ppo_agent(device='cpu')
     }
     
     # 创建控制器

@@ -5,14 +5,13 @@
 ## 核心特性
 
 - **时空图(Space Time Graph/STG)**：直观展示导弹真实射程，辅助战斗决断
-- **GPU 多环境并行**：单次支持数千环境同步训练
-- **Gymnasium 接口**：兼容主流 RL 算法
-- **手动对抗**：红蓝双方键盘操控，体验人机对战
+- **大规模并行训练**：单次支持数万个环境并行训练，并在每个环境中实现1000倍甚至更高倍率的时间加速
+- **冷启动**：通过规则式 agent 引导智能体学习，加快训练收敛
 
 ## 快速开始
 
 ```bash
-pip install torch pygame numpy gymnasium
+pip install -r requirements.txt
 python game_play.py   # 试玩游戏
 ```
 
@@ -22,22 +21,17 @@ python game_play.py   # 试玩游戏
 
 ```
 midrangeRL/
-├── env_gym/       # GPU 并行 RL 环境（tensor_env, gym_wrapper）
-├── env_numpy/     # CPU 单例环境（气动、制导模块）
+├── env_warp/       # GPU 并行 RL 环境
+├── env_numpy/     # CPU 单例环境，可以用来试验和开发仿真环境的新特性
 ├── agents/        # Agent 接口与实现
-│   ├── base_agent.py   # 抽象基类：act(obs)→action, reset()
-│   ├── rule_based/     # 规则 agent（冷启动）
-│   └── learned/        # 训练模型参数
-├── rewards/       # Reward 接口与预设
-│   ├── base_reward.py  # 抽象基类：compute()→scalar
-│   └── presets/        # 不同阶段的 reward 组合
+│   ├── rule_based/     # 规则式智能体（用于冷启动）
+│   └── learned/        # 被训练智能体
 ├── spacetime/       # 时空图渲染模块
-│   ├── tensor_spacetime.py  # RL训练使用的GPU时空图
 │   ├── spacetime_renderer.py  # 渲染时空图
 │   └── spacetime_core.py  # CPU模式的时空图计算
-├── train.py       # 训练入口（命令行参数选择 agent/reward/并行数等）
+├── train_warp.py       # 训练入口
 ├── game_play.py   # 游戏主程序
-└── config.py      # 配置文件6*5
+└── config.py      # 配置文件
 ```
 
 ## 训练脚本
@@ -56,24 +50,29 @@ python train.py --agent ppo_agent --opponent crank --reward zero --num-envs 256 
 
 ## RoadMap
 
-近期：
-- [ ] 开发能在手机浏览器上运行的html版游戏，让广大军迷评价参数拟真性和时空图实用性
-- [ ] 修复GPU版时空图的全力脱离线不符合要求的问题
-- [ ] 整合GPU版时空图与奖励函数
-- [ ] 设计知道躲避导弹的规则式agent：更改crank
-- [ ] 实现基于时空图的agent：STG_ppo1、STG_rule_based
-- [ ] 将带SGT与非SGT的agent训练至可用水平进行对比
+重大改变：改用Nvidia Warp进行高并行环境仿真，这将成为本项目的核心特色之一
+
+近期feature：
+- [x] 开发能在手机浏览器上运行的html版游戏，让广大军迷评价参数拟真性和时空图实用性
+- [x] 修复GPU版时空图的全力脱离线不符合要求的问题
+- [x] 设计合理的RL冷启动课程
+- [ ] 将主要功能迁移到Nvidia Warp当中实现，并删除原本的低性能实现
 
 长远：
 - [ ] 基于扩散模型的时空图概率云模式
-- [ ] 指挥型agent/互相掩护的编队战术
+- [ ] 大规模空战模式，一大群战斗机在同一个环境当中对战
+- [ ] 中心化指挥系统，设计指挥型agent与基层agent，指挥型没有实体，负责对基层进行调度，尝试训练出互相掩护的编队战术
+
+Issue：
+- [x] TODO:四阶段冷启动的第一阶段经过测试发现，原本应该直线飞行的对手居然也是智能体，这是一个bug，需要修复。
+- [x] TODO:目前Warp训练脚本的可视化功能在初始化时会卡顿十几秒，后续需要优化
 
 ## 环境对比
 
 | 模块 | 用途 | 设备 | 并行 |
 |------|------|------|------|
 | env_numpy | 可视化游戏 | CPU | 单环境 |
-| env_gym | RL 训练 | GPU | 多环境 |
+| env_warp | RL 训练 | GPU | 多环境 |
 
 ## 许可证
 

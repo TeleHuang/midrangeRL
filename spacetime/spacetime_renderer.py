@@ -4,7 +4,7 @@
 
 功能概述:
     使用Pygame实现时空图的三维透视投影渲染。
-    将时空数据（由spacetime_core.py或tensor_spacetime.py计算）转换为2D屏幕像素。
+    将时空数据（由spacetime_core.py计算）转换为2D屏幕像素。
     可在两个后端之间切换
 
 渲染内容:
